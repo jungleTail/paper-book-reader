@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>纸质书阅读器 - 支持 PDF/TXT/MD</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F5F5F5;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --accent-color: #4CAF50;
+            --note-bg: #E8F5E9;
+            --note-border: #81C784;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --sidebar-bg: #F9F9F9;
+            --border-color: #E0E0E0;
+            --highlight-bg: rgba(255, 245, 157, 0.6);
+            --highlight-border: #FFF59D;
+        }
+
+        .theme-dark {
+            --bg-primary: #1E1E1E;
+            --bg-secondary: #2D2D2D;
+            --text-primary: #E0E0E0;
+            --text-secondary: #AAAAAA;
+            --accent-color: #81C784;
+            --note-bg: #2E3B2E;
+            --note-border: #4CAF50;
+            --shadow-light: rgba(0, 0, 0, 0.3);
+            --sidebar-bg: #252525;
+            --border-color: #404040;
+            --highlight-bg: rgba(255, 245, 157, 0.3);
+            --highlight-border: #FFF59D;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.8;
+            transition: background 0.3s, color 0.3s;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        #toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-secondary);
+            padding: 10px 20px;
+            box-shadow: 0 2px 10px var(--shadow-light);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #toolbar button {
+            padding: 8px 16px;
+            border: none;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            font-size: 14px;
+        }
+
+        #toolbar button:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+
+        #toolbar button.active {
+            background: #2196F3;
+        }
+
+        #progress {
+            margin-left: auto;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #content {
+            flex: 1;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 40px;
+            overflow-y: auto;
+        }
+
+        #content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        #content h1 {
+            font-size: 2em;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        #content h2 {
+            font-size: 1.6em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        #content p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        #content code {
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        #content pre {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        #content pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        #content ul, #content ol {
+            margin-bottom: 15px;
+            padding-left: 30px;
+        }
+
+        #content li {
+            margin-bottom: 8px;
+        }
+
+        #content blockquote {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 15px;
+            margin: 15px 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        #content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        #content table th, #content table td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        #content table th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        #content a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+
+        #content a:hover {
+            text-decoration: underline;
+        }
+
+        #content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .pdf-page {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px var(--shadow-light);
+        }
+
+        .pdf-page-header {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .pdf-text-layer {
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* 扫描版/无文本 PDF 页面渲染为图片 */
+        .pdf-page-canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            margin: 10px auto;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 1px 4px var(--shadow-light);
+        }
+
+        .add-page-note-btn {
+            display: block;
+            margin: 12px auto 4px;
+            padding: 6px 18px;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            cursor: pointer;
+        }
+
+        .add-page-note-btn:hover {
+            color: var(--accent-color, #2196F3);
+            border-color: var(--accent-color, #2196F3);
+        }
+
+        /* 自定义悬浮提示 */
+        #tooltip {
+            position: fixed;
+            z-index: 9999;
+            max-width: 240px;
+            padding: 5px 9px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #fff;
+            background: rgba(33, 33, 33, 0.92);
+            border-radius: 6px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(2px);
+            transition: opacity 0.15s, transform 0.15s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        #tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #notes-panel {
+            width: 300px;
+            background: var(--sidebar-bg);
+            border-left: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            transition: transform 0.3s;
+        }
+
+        #notes-panel.collapsed {
+            transform: translateX(100%);
+        }
+
+        #notes-panel h3 {
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            font-size: 1.2em;
+        }
+
+        .note-item {
+            background: var(--note-bg);
+            border-left: 3px solid var(--note-border);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .note-item:hover {
+            transform: translateX(-5px);
+        }
+
+        .note-item .note-time {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .note-item .note-text {
+            font-size: 0.95em;
+            color: var(--text-primary);
+        }
+
+        .text-highlight {
+            background: var(--highlight-bg);
+            border-bottom: 2px solid var(--highlight-border);
+            padding: 2px 0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .text-highlight:hover {
+            background: var(--highlight-border);
+        }
+
+        .note-box {
+            background: var(--note-bg);
+            border-left: 4px solid var(--note-border);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 15px 0;
+            box-shadow: 0 4px 12px var(--shadow-light);
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.3s;
+        }
+
+        .note-box.collapsed {
+            padding: 6px 12px;
+            margin: 8px 0;
+            background: transparent;
+            border-left: 3px solid var(--note-border);
+            box-shadow: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .note-box.collapsed:hover {
+            background: var(--note-bg);
+            box-shadow: 0 2px 8px var(--shadow-light);
+            transform: translateY(-1px);
+        }
+
+        .note-box.collapsed .note-content,
+        .note-box.collapsed .note-actions {
+            display: none;
+        }
+
+        .note-box.collapsed .note-header {
+            margin-bottom: 0;
+        }
+
+        .note-preview {
+            display: none;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            margin: 4px 0 0 28px;
+            padding: 4px 10px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.2s;
+        }
+
+        .note-box.collapsed .note-preview {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .note-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        .note-toggle-btn {
+            cursor: pointer;
+            font-size: 1.2em;
+            user-select: none;
+            transition: transform 0.2s;
+            display: inline-block;
+            width: 20px;
+            text-align: center;
+        }
+
+        .note-toggle-btn:hover {
+            transform: scale(1.2);
+        }
+
+        .note-icon {
+            font-size: 1.2em;
+        }
+
+        .note-expand-hint {
+            display: none;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        .note-box.collapsed .note-expand-hint {
+            display: inline;
+        }
+
+        .note-delete {
+            margin-left: auto;
+            background: transparent;
+            border: none;
+            color: #F44336;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .note-delete:hover {
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        .note-imported-badge {
+            font-size: 0.75em;
+            background: #FF9800;
+            color: #fff;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+            white-space: nowrap;
+        }
+
+        .note-content {
+            margin-top: 8px;
+        }
+
+        .note-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            border: 1px solid var(--note-border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95em;
+            resize: vertical;
+            margin-bottom: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .note-textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .note-textarea.readonly {
+            background: transparent;
+            border: 1px solid transparent;
+            resize: none;
+            cursor: default;
+        }
+
+        .note-textarea.readonly:focus {
+            outline: none;
+            border-color: transparent;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .note-actions button {
+            padding: 4px 12px;
+            border: 1px solid var(--note-border);
+            background: transparent;
+            color: var(--text-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .note-actions button:hover {
+            background: var(--note-border);
+            color: white;
+        }
+
+        .note-actions button.primary {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .note-actions button.primary:hover {
+            background: #45a049;
+        }
+
+        #contextMenu {
+            position: fixed;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px var(--shadow-light);
+            padding: 8px 0;
+            z-index: 1000;
+            min-width: 180px;
+            display: none;
+        }
+
+        #contextMenu .menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: var(--text-primary);
+            user-select: none;
+        }
+
+        #contextMenu .menu-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        #contextMenu .menu-item.disabled {
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        #contextMenu .menu-item.disabled:hover {
+            background: transparent;
+        }
+
+        .drag-over {
+            border: 3px dashed var(--accent-color) !important;
+            background: rgba(76, 175, 80, 0.05) !important;
+        }
+
+        .drop-hint {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-primary);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px var(--shadow-light);
+            text-align: center;
+            z-index: 200;
+            display: none;
+        }
+
+        .drop-hint.show {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+            font-size: 1.1em;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-secondary);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1200px) {
+            #notes-panel {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            #notes-panel {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+                max-height: 300px;
+            }
+
+            #content {
+                padding: 0 20px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-secondary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-primary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h2 {
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            margin-bottom: 20px;
+        }
+
+        .file-type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .file-type-badge.md {
+            background: #2196F3;
+            color: white;
+        }
+
+        .file-type-badge.txt {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .file-type-badge.pdf {
+            background: #F44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header id="toolbar">
+        <button id="loadFile" data-tooltip="打开本地 PDF / TXT / Markdown 文件">📂 加载文件</button>
+        <button id="toggleTheme" data-tooltip="切换明亮 / 暗黑阅读主题">🌙 暗黑模式</button>
+        <button id="toggleNotesPanel" data-tooltip="显示 / 隐藏右侧笔记面板">📋 笔记面板</button>
+        <button id="exportNotes" data-tooltip="将当前书籍的笔记导出为 JSON 文件">📤 导出笔记</button>
+        <button id="importNotes" data-tooltip="从 JSON 文件导入笔记（相同位置自动合并）">📥 导入笔记</button>
+        <span id="progress" data-tooltip="当前阅读进度">阅读进度: 0%</span>
+    </header>
+
+    <div class="main-container">
+        <main id="content">
+            <div class="empty-state">
+                <div class="icon">📖</div>
+                <h2>欢迎使用纸质书阅读器</h2>
+                <p>请点击上方"加载文件"按钮，或直接将文件拖放到此区域</p>
+                <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 20px;">
+                    💡 支持 PDF、TXT、Markdown 文件<br>
+                    💡 选中文字后右键可添加笔记
+                </p>
+            </div>
+        </main>
+
+        <aside id="notes-panel">
+            <h3>📝 笔记列表</h3>
+            <div id="notes-list">
+                <p style="color: var(--text-secondary); text-align: center; padding: 20px;">
+                    暂无笔记
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <div id="contextMenu">
+        <div class="menu-item" data-action="add-note">📝 添加笔记</div>
+        <div class="menu-item" data-action="copy">📋 复制选中</div>
+    </div>
+
+    <div id="tooltip" role="tooltip"></div>
+
+    <div class="drop-hint" id="dropHint">
+        <h2>📂 释放以加载文件</h2>
+        <p>支持 PDF、TXT、MD 文件</p>
+    </div>
+
+    <script>
+        let currentFile = null;
+        let notes = [];
+        let currentTheme = 'light';
+        let highlightCounter = 0;
+
+        // IndexedDB 封装：用大容量存储保存书籍内容（PDF/大文本），突破 localStorage ~5MB 限制
+        class StorageDB {
+            static DB_NAME = 'paperBookReaderDB';
+            static STORE_NAME = 'files';
+            static dbPromise = null;
+
+            static openDB() {
+                if (StorageDB.dbPromise) return StorageDB.dbPromise;
+                StorageDB.dbPromise = new Promise((resolve, reject) => {
+                    if (!window.indexedDB) {
+                        reject(new Error('当前浏览器不支持 IndexedDB'));
+                        return;
+                    }
+                    const req = indexedDB.open(StorageDB.DB_NAME, 1);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(StorageDB.STORE_NAME)) {
+                            db.createObjectStore(StorageDB.STORE_NAME);
+                        }
+                    };
+                    req.onsuccess = (e) => resolve(e.target.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+                return StorageDB.dbPromise;
+            }
+
+            static async set(key, value) {
+                try {
+                    const db = await StorageDB.openDB();
+                    await new Promise((resolve, reject) => {
+                        const tx = db.transaction(StorageDB.STORE_NAME, 'readwrite');
+                        tx.objectStore(StorageDB.STORE_NAME).put(value, key);
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error);
+                    });
+                    return true;
+                } catch (e) {
+                    console.warn('⚠️ IndexedDB 写入失败, 回退 localStorage:', e);
+                    try { if (typeof value === 'string') localStorage.setItem(key, value); } catch (e2) {}
+                    return false;
+                }
+            }
+
+            static async get(key) {
+                try {
+                    const db = await StorageDB.openDB();
+                    const value = await new Promise((resolve, reject) => {
+                        const tx = db.transaction(StorageDB.STORE_NAME, 'readonly');
+                        const req = tx.objectStore(StorageDB.STORE_NAME).get(key);
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => reject(req.error);
+                    });
+                    if (value !== undefined) return value;
+                } catch (e) {
+                    console.warn('⚠️ IndexedDB 读取失败, 回退 localStorage:', e);
+                }
+                // 兜底：兼容旧版本写入 localStorage 的数据
+                const legacy = localStorage.getItem(key);
+                return legacy !== null ? legacy : undefined;
+            }
+
+            static async delete(key) {
+                try {
+                    const db = await StorageDB.openDB();
+                    await new Promise((resolve, reject) => {
+                        const tx = db.transaction(StorageDB.STORE_NAME, 'readwrite');
+                        tx.objectStore(StorageDB.STORE_NAME).delete(key);
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error);
+                    });
+                } catch (e) {
+                    try { localStorage.removeItem(key); } catch (e2) {}
+                }
+            }
+        }
+
+        class FileManager {
+            static async init() {
+                document.getElementById('loadFile').addEventListener('click', () => {
+                    FileManager.selectFile();
+                });
+
+                const content = document.getElementById('content');
+                const dropHint = document.getElementById('dropHint');
+
+                content.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    content.classList.add('drag-over');
+                    dropHint.classList.add('show');
+                });
+
+                content.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!content.contains(e.relatedTarget)) {
+                        content.classList.remove('drag-over');
+                        dropHint.classList.remove('show');
+                    }
+                });
+
+                content.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    content.classList.remove('drag-over');
+                    dropHint.classList.remove('show');
+                    
+                    const file = e.dataTransfer.files[0];
+                    if (file && FileManager.isSupportedFile(file.name)) {
+                        FileManager.loadFile(file);
+                    } else {
+                        alert('请选择有效的文件 (.pdf, .txt, .md, .markdown)');
+                    }
+                });
+
+                const savedFileType = localStorage.getItem('md_reader_current_filetype');
+                if (savedFileType) {
+                    const savedFileName = localStorage.getItem('md_reader_current_filename') || '未命名文档';
+                    const savedFileId = localStorage.getItem('md_reader_current_fileid');
+                    const savedSize = parseInt(localStorage.getItem('md_reader_current_filesize') || '0', 10);
+                    const bookId = savedFileId || FileManager.generateBookId(savedFileName, savedSize);
+                    const savedContent = await StorageDB.get('md_reader_current_content');
+
+                    if (savedContent == null) {
+                        console.warn('⚠️ 未找到上次打开的文件内容，请重新打开文件');
+                        return;
+                    }
+
+                    currentFile = {
+                        name: savedFileName,
+                        id: bookId,
+                        path: bookId,
+                        size: savedSize,
+                        content: savedContent,
+                        type: savedFileType
+                    };
+
+                    if (savedFileType === 'pdf') {
+                        try {
+                            let pdfData = savedContent;
+                            if (typeof savedContent === 'string') {
+                                // 兼容旧版 base64 数据，并迁移到 IndexedDB（分块转换，避免大数组 apply 栈溢出）
+                                const bin = atob(savedContent);
+                                const bytes = new Uint8Array(bin.length);
+                                const CHUNK = 0x8000;
+                                for (let i = 0; i < bin.length; i += CHUNK) {
+                                    const end = Math.min(i + CHUNK, bin.length);
+                                    for (let j = i; j < end; j++) bytes[j] = bin.charCodeAt(j);
+                                }
+                                pdfData = bytes;
+                                currentFile.content = pdfData;
+                                await StorageDB.set('md_reader_current_content', pdfData);
+                            }
+                            await FileManager.renderPDF(pdfData, savedFileName);
+                            ProgressTracker.restore(currentFile.id);
+                            NoteManager.restore(currentFile.id);
+                        } catch (err) {
+                            console.error('❌ PDF 恢复失败:', err);
+                        }
+                    } else {
+                        FileManager.renderText(savedContent, savedFileName, savedFileType);
+                        ProgressTracker.restore(currentFile.id);
+                        NoteManager.restore(currentFile.id);
+                    }
+                }
+            }
+
+            static isSupportedFile(filename) {
+                return filename.endsWith('.md') || 
+                       filename.endsWith('.markdown') || 
+                       filename.endsWith('.txt') || 
+                       filename.endsWith('.pdf');
+            }
+
+            // 以文件名 + 文件大小生成稳定标识，不依赖文件路径
+            static generateBookId(name, size) {
+                const raw = name + '|' + (size || 0);
+                let hash = 0;
+                for (let i = 0; i < raw.length; i++) {
+                    hash = (hash << 5) - hash + raw.charCodeAt(i);
+                    hash |= 0;
+                }
+                return 'book_' + (hash >>> 0).toString(16);
+            }
+
+            static selectFile() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.md,.markdown,.txt,.pdf';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        FileManager.loadFile(file);
+                    }
+                };
+                input.click();
+            }
+
+            static async loadFile(file) {
+                try {
+                    const fileType = FileManager.getFileType(file.name);
+                    
+                    if (fileType === 'pdf') {
+                        await FileManager.loadPDF(file);
+                    } else {
+                        const text = await file.text();
+                        const bookId = FileManager.generateBookId(file.name, file.size);
+                        currentFile = {
+                            name: file.name,
+                            id: bookId,
+                            path: bookId,
+                            size: file.size,
+                            content: text,
+                            type: fileType
+                        };
+
+                        await StorageDB.set('md_reader_current_content', text);
+                        localStorage.setItem('md_reader_current_filename', file.name);
+                        localStorage.setItem('md_reader_current_filetype', fileType);
+                        localStorage.setItem('md_reader_current_fileid', bookId);
+                        localStorage.setItem('md_reader_current_filesize', file.size);
+
+                        FileManager.renderText(text, file.name, fileType);
+                        ProgressTracker.restore(currentFile.id);
+                        NoteManager.restore(currentFile.id);
+                    }
+
+                    console.log('✅ 文件加载成功: ' + file.name);
+                } catch (error) {
+                    console.error('❌ 文件加载失败:', error);
+                    alert('文件加载失败，请重试');
+                }
+            }
+
+            static async loadPDF(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfData = new Uint8Array(arrayBuffer);
+                const bookId = FileManager.generateBookId(file.name, file.size);
+
+                currentFile = {
+                    name: file.name,
+                    id: bookId,
+                    path: bookId,
+                    size: file.size,
+                    content: pdfData,
+                    type: 'pdf'
+                };
+
+                // 保存 PDF 原始二进制到 IndexedDB（支持大文件，避免 localStorage 5MB 限制）
+                await StorageDB.set('md_reader_current_content', pdfData);
+                localStorage.setItem('md_reader_current_filename', file.name);
+                localStorage.setItem('md_reader_current_filetype', 'pdf');
+                localStorage.setItem('md_reader_current_fileid', bookId);
+                localStorage.setItem('md_reader_current_filesize', file.size);
+
+                await FileManager.renderPDF(pdfData, file.name);
+                ProgressTracker.restore(currentFile.id);
+                NoteManager.restore(currentFile.id);
+            }
+
+            static async renderPDF(pdfData, fileName) {
+                const contentDiv = document.getElementById('content');
+                contentDiv.innerHTML = '<div class="loading">正在加载 PDF 文件...</div>';
+
+                try {
+                    const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                    const pdf = await loadingTask.promise;
+                    
+                    contentDiv.innerHTML = '';
+                    
+                    const fileTypeBadge = '<span class="file-type-badge pdf">PDF</span>';
+                    const title = document.createElement('h1');
+                    title.innerHTML = fileName + fileTypeBadge;
+                    contentDiv.appendChild(title);
+
+                    const totalPages = pdf.numPages;
+                    
+                    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const textContent = await page.getTextContent();
+                        
+                        const pageDiv = document.createElement('div');
+                        pageDiv.className = 'pdf-page';
+                        pageDiv.dataset.pageNumber = pageNum;
+                        
+                        const header = document.createElement('div');
+                        header.className = 'pdf-page-header';
+                        header.textContent = '第 ' + pageNum + ' 页 / 共 ' + totalPages + ' 页';
+                        pageDiv.appendChild(header);
+                        
+                        if (textContent.items.length > 0) {
+                            // 有文本层：沿用文本渲染，支持文字选中与笔记
+                            const textLayer = document.createElement('div');
+                            textLayer.className = 'pdf-text-layer';
+                            
+                            // 构建文本内容
+                            let lastY = null;
+                            let textHTML = '';
+                            
+                            for (let item of textContent.items) {
+                                if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+                                    textHTML += '\n';
+                                }
+                                textHTML += item.str + ' ';
+                                lastY = item.transform[5];
+                            }
+                            
+                            textLayer.textContent = textHTML;
+                            pageDiv.appendChild(textLayer);
+                        } else {
+                            // 扫描版/无文本页：渲染为页面图片
+                            const canvas = document.createElement('canvas');
+                            canvas.className = 'pdf-page-canvas';
+                            const baseViewport = page.getViewport({ scale: 1 });
+                            const scale = Math.min(2, (window.innerWidth - 80) / baseViewport.width) || 1;
+                            const viewport = page.getViewport({ scale });
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            const ctx = canvas.getContext('2d');
+                            await page.render({ canvasContext: ctx, viewport }).promise;
+                            pageDiv.appendChild(canvas);
+
+                            // 扫描版：提供整页笔记入口
+                            pageDiv.dataset.scanned = 'true';
+                            const noteBtn = document.createElement('button');
+                            noteBtn.className = 'add-page-note-btn';
+                            noteBtn.textContent = '📝 整页笔记';
+                            noteBtn.setAttribute('data-tooltip', '为这一页添加整页笔记');
+                            noteBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                NoteManager.addPageNote(pageDiv);
+                            });
+                            pageDiv.appendChild(noteBtn);
+                        }
+
+                        contentDiv.appendChild(pageDiv);
+                    }
+
+                    document.title = fileName + ' - 纸质书阅读器';
+                    console.log('✅ PDF 加载成功: ' + totalPages + ' 页');
+                } catch (error) {
+                    console.error('❌ PDF 渲染失败:', error);
+                    contentDiv.innerHTML = '<div class="empty-state"><div class="icon">❌</div><h2>PDF 加载失败</h2><p>请检查文件是否损坏或重试</p></div>';
+                }
+            }
+
+            static renderText(text, fileName, fileType) {
+                const contentDiv = document.getElementById('content');
+                
+                let fileTypeBadge = '';
+                if (fileType === 'md' || fileType === 'markdown') {
+                    fileTypeBadge = '<span class="file-type-badge md">MD</span>';
+                    
+                    if (typeof marked !== 'undefined') {
+                        marked.setOptions({
+                            breaks: true,
+                            gfm: true,
+                            highlight: function(code, lang) {
+                                if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                                    try {
+                                        return hljs.highlight(code, { language: lang }).value;
+                                    } catch (e) {}
+                                }
+                                return code;
+                            }
+                        });
+
+                        contentDiv.innerHTML = '<h1>' + fileName + fileTypeBadge + '</h1>' + marked.parse(text);
+                    } else {
+                        contentDiv.innerHTML = '<h1>' + fileName + fileTypeBadge + '</h1><pre style="white-space: pre-wrap; font-family: inherit;">' + text + '</pre>';
+                    }
+                } else {
+                    fileTypeBadge = '<span class="file-type-badge txt">TXT</span>';
+                    // TXT 文件：保留换行和格式
+                    const formattedText = text
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/\n/g, '<br>')
+                        .replace(/ /g, '&nbsp;');
+                    
+                    contentDiv.innerHTML = '<h1>' + fileName + fileTypeBadge + '</h1><div style="white-space: pre-wrap; font-family: inherit;">' + formattedText + '</div>';
+                }
+
+                document.title = fileName + ' - 纸质书阅读器';
+            }
+
+            static getFileType(filename) {
+                if (filename.endsWith('.pdf')) return 'pdf';
+                if (filename.endsWith('.md')) return 'md';
+                if (filename.endsWith('.markdown')) return 'markdown';
+                if (filename.endsWith('.txt')) return 'txt';
+                return 'unknown';
+            }
+        }
+
+        class ProgressTracker {
+            static throttleDelay = 500;
+            static lastSaveTime = 0;
+
+            static init() {
+                window.addEventListener('scroll', () => {
+                    ProgressTracker.throttledSave();
+                });
+                console.log('✅ 阅读进度追踪器已初始化');
+            }
+
+            static throttledSave() {
+                const now = Date.now();
+                if (now - ProgressTracker.lastSaveTime < ProgressTracker.throttleDelay) {
+                    return;
+                }
+                ProgressTracker.lastSaveTime = now;
+                ProgressTracker.save();
+            }
+
+            static save() {
+                if (!currentFile) return;
+
+                const scrollY = window.scrollY;
+                const documentHeight = document.documentElement.scrollHeight;
+                const windowHeight = window.innerHeight;
+                const maxScroll = documentHeight - windowHeight;
+                const scrollPercent = maxScroll > 0 ? (scrollY / maxScroll * 100).toFixed(1) : 0;
+
+                const progressData = {
+                    bookId: currentFile.id,
+                    filePath: currentFile.path,
+                    fileName: currentFile.name,
+                    scrollY: scrollY,
+                    scrollPercent: parseFloat(scrollPercent),
+                    lastReadTime: new Date().toISOString(),
+                    totalSessions: ProgressTracker.getSessions() + 1
+                };
+
+                localStorage.setItem('md_reader_progress', JSON.stringify(progressData));
+                ProgressTracker.updateUI(scrollPercent);
+            }
+
+            static restore(bookId) {
+                const data = localStorage.getItem('md_reader_progress');
+                if (!data) return;
+
+                const progressData = JSON.parse(data);
+                if ((progressData.bookId || progressData.filePath) !== bookId) return;
+
+                setTimeout(() => {
+                    window.scrollTo(0, progressData.scrollY);
+                    console.log('✅ 已恢复阅读进度: ' + progressData.scrollPercent + '%');
+                }, 100);
+            }
+
+            static updateUI(percent) {
+                const progressSpan = document.getElementById('progress');
+                if (progressSpan) {
+                    progressSpan.textContent = '阅读进度: ' + percent + '%';
+                }
+            }
+
+            static getSessions() {
+                const data = localStorage.getItem('md_reader_progress');
+                if (!data) return 0;
+                return JSON.parse(data).totalSessions || 0;
+            }
+        }
+
+        class NoteManager {
+            static contextMenu = null;
+
+            static init() {
+                NoteManager.createContextMenu();
+
+                document.addEventListener('contextmenu', (e) => {
+                    const content = document.getElementById('content');
+                    if (content.contains(e.target)) {
+                        e.preventDefault();
+                        NoteManager.showContextMenu(e.clientX, e.clientY);
+                    }
+                });
+
+                document.addEventListener('click', () => {
+                    NoteManager.hideContextMenu();
+                });
+
+                NoteManager.loadNotes();
+                console.log('✅ 笔记管理器已初始化');
+            }
+
+            static createContextMenu() {
+                NoteManager.contextMenu = document.getElementById('contextMenu');
+
+                NoteManager.contextMenu.querySelectorAll('.menu-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const action = e.target.dataset.action;
+                        NoteManager.handleMenuAction(action);
+                    });
+                });
+            }
+
+            static showContextMenu(x, y) {
+                const selection = window.getSelection();
+                const addNoteItem = NoteManager.contextMenu.querySelector('[data-action="add-note"]');
+
+                if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+                    addNoteItem.classList.add('disabled');
+                } else {
+                    addNoteItem.classList.remove('disabled');
+                }
+
+                NoteManager.contextMenu.style.display = 'block';
+                NoteManager.contextMenu.style.left = x + 'px';
+                NoteManager.contextMenu.style.top = y + 'px';
+
+                const rect = NoteManager.contextMenu.getBoundingClientRect();
+                if (rect.right > window.innerWidth) {
+                    NoteManager.contextMenu.style.left = (x - rect.width) + 'px';
+                }
+                if (rect.bottom > window.innerHeight) {
+                    NoteManager.contextMenu.style.top = (y - rect.height) + 'px';
+                }
+            }
+
+            static hideContextMenu() {
+                if (NoteManager.contextMenu) {
+                    NoteManager.contextMenu.style.display = 'none';
+                }
+            }
+
+            static handleMenuAction(action) {
+                NoteManager.hideContextMenu();
+
+                const selection = window.getSelection();
+                
+                if (action === 'add-note') {
+                    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+                        alert('请先选中一段文字，然后再操作');
+                        return;
+                    }
+                }
+
+                switch (action) {
+                    case 'add-note':
+                        NoteManager.addNote();
+                        break;
+                    case 'copy':
+                        document.execCommand('copy');
+                        break;
+                }
+            }
+
+            static addNote() {
+                const selection = window.getSelection();
+                const selectedText = selection.toString().trim();
+                if (!selectedText) return;
+
+                const range = selection.getRangeAt(0);
+
+                // 在原文中高亮选中文字
+                const highlightId = 'highlight_' + (++highlightCounter);
+                const span = document.createElement('span');
+                span.className = 'text-highlight';
+                span.id = highlightId;
+                span.title = '点击查看笔记';
+                
+                try {
+                    range.surroundContents(span);
+                } catch (e) {
+                    console.warn('无法高亮此选择', e);
+                }
+
+                const note = {
+                    id: 'note_' + Date.now(),
+                    bookId: currentFile ? currentFile.id : 'unknown',
+                    filePath: currentFile ? currentFile.path : 'unknown',
+                    selectedText: selectedText,
+                    highlightId: highlightId,
+                    text: '',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    position: NoteManager.capturePosition(range),
+                    collapsed: false,
+                    confirmed: false
+                };
+
+                NoteManager.insertNoteBox(span, note);
+                notes.push(note);
+                NoteManager.saveNotes();
+                NoteManager.updateNotesPanel();
+
+                console.log('✅ 笔记已添加');
+            }
+
+            // 扫描版 PDF（无文本层）的整页笔记
+            static addPageNote(pageDiv) {
+                if (!currentFile) {
+                    alert('请先打开书籍');
+                    return;
+                }
+
+                const pageNum = pageDiv.dataset.pageNumber || '0';
+                const note = {
+                    id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                    bookId: currentFile.id,
+                    filePath: currentFile.path,
+                    selectedText: '[第 ' + pageNum + ' 页 整页]',
+                    highlightId: '',
+                    pageNumber: parseInt(pageNum, 10),
+                    text: '',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    position: {
+                        selector: '.pdf-page[data-page-number="' + pageNum + '"]',
+                        offset: 0,
+                        selectedText: ''
+                    },
+                    collapsed: false,
+                    confirmed: false
+                };
+
+                NoteManager.insertNoteBox(pageDiv, note, true);
+                notes.push(note);
+                NoteManager.saveNotes();
+                NoteManager.updateNotesPanel();
+
+                console.log('✅ 整页笔记已添加');
+            }
+
+            static capturePosition(range) {
+                const container = range.commonAncestorContainer;
+                const parentElement = container.nodeType === 3 ? container.parentNode : container;
+
+                return {
+                    selector: NoteManager.getCSSSelector(parentElement),
+                    offset: range.startOffset,
+                    selectedText: range.toString().trim().substring(0, 50)
+                };
+            }
+
+            static getCSSSelector(element) {
+                if (element.id) {
+                    return '#' + element.id;
+                }
+
+                const parent = element.parentNode;
+                if (parent) {
+                    const index = Array.from(parent.children).indexOf(element) + 1;
+                    return element.tagName.toLowerCase() + ':nth-child(' + index + ')';
+                }
+
+                return element.tagName.toLowerCase();
+            }
+
+            static insertNoteBox(targetElement, note, appendToTarget = false) {
+                const noteBox = document.createElement('div');
+                noteBox.className = 'note-box';
+                noteBox.dataset.noteId = note.id;
+
+                const timeStr = NoteManager.formatTime(note.createdAt);
+                const previewText = NoteManager.getPreviewText(note);
+
+                noteBox.innerHTML = `
+                    <div class="note-header">
+                        <span class="note-toggle-btn" title="折叠/展开" data-tooltip="折叠 / 展开笔记">${note.collapsed ? '▶' : '▼'}</span>
+                        <span class="note-icon">📝</span>
+                        <span class="note-time">${timeStr}</span>
+                        ${note.imported ? '<span class="note-imported-badge">🆕 新导入</span>' : ''}
+                        <button class="note-delete" title="删除笔记" data-tooltip="删除这条笔记">✕</button>
+                    </div>
+                    <div class="note-preview">${previewText}</div>
+                    <div class="note-content">
+                        <textarea class="note-textarea" placeholder="在这里输入笔记内容...">${note.text || ''}</textarea>
+                        <div class="note-actions">
+                            <button class="note-confirm primary" data-tooltip="保存并锁定笔记内容">✓ 确认</button>
+                            <button class="note-edit" style="display:none;" data-tooltip="重新编辑笔记">✎ 编辑</button>
+                        </div>
+                    </div>
+                `;
+
+                // 在高亮元素后插入笔记框；appendToTarget 时直接作为目标元素子节点（扫描版整页笔记）
+                if (appendToTarget) {
+                    targetElement.appendChild(noteBox);
+                } else {
+                    targetElement.parentNode.insertBefore(noteBox, targetElement.nextSibling);
+                }
+
+                // 点击折叠状态的笔记框可以展开
+                noteBox.addEventListener('click', (e) => {
+                    if (note.collapsed && !e.target.closest('.note-delete') && !e.target.closest('.note-toggle-btn')) {
+                        NoteManager.toggleNoteExpand(noteBox, note);
+                    }
+                });
+
+                NoteManager.bindNoteEvents(noteBox, note);
+
+                if (note.confirmed) {
+                    NoteManager.setNoteReadOnly(noteBox, note);
+                }
+            }
+
+            static toggleNoteExpand(noteBox, note) {
+                note.collapsed = !note.collapsed;
+                
+                if (note.collapsed) {
+                    noteBox.classList.add('collapsed');
+                    noteBox.querySelector('.note-toggle-btn').textContent = '▶';
+                } else {
+                    noteBox.classList.remove('collapsed');
+                    noteBox.querySelector('.note-toggle-btn').textContent = '▼';
+                }
+
+                NoteManager.saveNotes();
+            }
+
+            static bindNoteEvents(noteBox, note) {
+                const textarea = noteBox.querySelector('.note-textarea');
+                const confirmBtn = noteBox.querySelector('.note-confirm');
+                const editBtn = noteBox.querySelector('.note-edit');
+                const deleteBtn = noteBox.querySelector('.note-delete');
+                const toggleBtn = noteBox.querySelector('.note-toggle-btn');
+
+                // 确认按钮
+                confirmBtn.addEventListener('click', () => {
+                    if (!textarea.value.trim()) {
+                        alert('请输入笔记内容');
+                        return;
+                    }
+
+                    note.text = textarea.value;
+                    note.confirmed = true;
+                    note.updatedAt = new Date().toISOString();
+                    
+                    NoteManager.setNoteReadOnly(noteBox, note);
+                    const previewDiv = noteBox.querySelector('.note-preview');
+                    if (previewDiv) previewDiv.textContent = NoteManager.getPreviewText(note);
+                    NoteManager.saveNotes();
+                    NoteManager.updateNotesPanel();
+
+                    console.log('✅ 笔记已确认');
+                });
+
+                // 编辑按钮
+                editBtn.addEventListener('click', () => {
+                    note.confirmed = false;
+                    textarea.classList.remove('readonly');
+                    textarea.readOnly = false;
+                    textarea.focus();
+                    
+                    confirmBtn.style.display = 'inline-block';
+                    editBtn.style.display = 'none';
+
+                    NoteManager.saveNotes();
+                });
+
+                // 删除按钮
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm('确定要删除这条笔记吗？')) {
+                        // 移除高亮
+                        const highlight = document.getElementById(note.highlightId);
+                        if (highlight) {
+                            const parent = highlight.parentNode;
+                            while (highlight.firstChild) {
+                                parent.insertBefore(highlight.firstChild, highlight);
+                            }
+                            parent.removeChild(highlight);
+                        }
+
+                        noteBox.style.opacity = '0';
+                        noteBox.style.transform = 'translateY(-10px)';
+                        setTimeout(() => {
+                            noteBox.remove();
+                            notes = notes.filter(n => n.id !== note.id);
+                            NoteManager.saveNotes();
+                            NoteManager.updateNotesPanel();
+                        }, 300);
+                    }
+                });
+
+                // 折叠/展开按钮
+                toggleBtn.addEventListener('click', () => {
+                    NoteManager.toggleNoteExpand(noteBox, note);
+                });
+            }
+
+            static setNoteReadOnly(noteBox, note) {
+                const textarea = noteBox.querySelector('.note-textarea');
+                const confirmBtn = noteBox.querySelector('.note-confirm');
+                const editBtn = noteBox.querySelector('.note-edit');
+
+                textarea.classList.add('readonly');
+                textarea.readOnly = true;
+
+                confirmBtn.style.display = 'none';
+                editBtn.style.display = 'inline-block';
+            }
+
+            static formatTime(isoString) {
+                const date = new Date(isoString);
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                return (date.getMonth() + 1) + '/' + date.getDate() + ' ' + date.getHours() + ':' + minutes;
+            }
+
+            static getPreviewText(note) {
+                const text = (note.text || '').trim();
+                if (text) {
+                    return text.length > 60 ? text.substring(0, 60) + '…' : text;
+                }
+                const sel = (note.selectedText || '').trim();
+                if (sel) {
+                    return '📌 ' + (sel.length > 40 ? sel.substring(0, 40) + '…' : sel);
+                }
+                return '点击展开以添加笔记...';
+            }
+
+            static getBookId(note) {
+                return note.bookId || note.filePath;
+            }
+
+            static saveNotes() {
+                try {
+                    localStorage.setItem('md_reader_notes', JSON.stringify(notes));
+                    console.log('💾 已保存 ' + notes.length + ' 条笔记');
+                } catch (e) {
+                    console.error('保存笔记失败:', e);
+                }
+            }
+
+            static loadNotes() {
+                const data = localStorage.getItem('md_reader_notes');
+                if (data) {
+                    try {
+                        notes = JSON.parse(data);
+                        console.log('📂 已加载 ' + notes.length + ' 条笔记');
+                    } catch (e) {
+                        console.error('加载笔记失败:', e);
+                        notes = [];
+                    }
+                }
+            }
+
+            static restore(filePath) {
+                const fileNotes = notes.filter(note => NoteManager.getBookId(note) === filePath);
+
+                // 先恢复高亮
+                fileNotes.forEach(note => {
+                    if (note.highlightId) {
+                        NoteManager.restoreHighlight(note);
+                    }
+                });
+
+                // 再插入笔记框（恢复时默认折叠，仅显示简略信息）
+                setTimeout(() => {
+                    fileNotes.forEach(note => {
+                        if (note.highlightId) {
+                            const highlight = document.getElementById(note.highlightId);
+                            if (highlight) {
+                                note.collapsed = true;
+                                NoteManager.insertNoteBox(highlight, note);
+                                const noteBox = document.querySelector('[data-note-id="' + note.id + '"]');
+                                if (noteBox) {
+                                    noteBox.classList.add('collapsed');
+                                    const toggleBtn = noteBox.querySelector('.note-toggle-btn');
+                                    if (toggleBtn) {
+                                        toggleBtn.textContent = '▶';
+                                    }
+                                }
+                            }
+                        } else if (note.pageNumber) {
+                            // 扫描版整页笔记：恢复到对应页面
+                            const pageDiv = document.querySelector('.pdf-page[data-page-number="' + note.pageNumber + '"]');
+                            if (pageDiv) {
+                                note.collapsed = true;
+                                NoteManager.insertNoteBox(pageDiv, note, true);
+                                const noteBox = document.querySelector('[data-note-id="' + note.id + '"]');
+                                if (noteBox) {
+                                    noteBox.classList.add('collapsed');
+                                    const toggleBtn = noteBox.querySelector('.note-toggle-btn');
+                                    if (toggleBtn) {
+                                        toggleBtn.textContent = '▶';
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    NoteManager.updateNotesPanel();
+                    console.log('✅ 已恢复 ' + fileNotes.length + ' 条笔记');
+                }, 100);
+            }
+
+            static restoreHighlight(note) {
+                if (!note.selectedText) return;
+
+                const content = document.getElementById('content');
+                const textNodes = [];
+                
+                const walk = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+                let node;
+                while (node = walk.nextNode()) {
+                    textNodes.push(node);
+                }
+
+                for (let textNode of textNodes) {
+                    const index = textNode.textContent.indexOf(note.selectedText);
+                    if (index !== -1) {
+                        const range = document.createRange();
+                        range.setStart(textNode, index);
+                        range.setEnd(textNode, index + note.selectedText.length);
+                        
+                        const span = document.createElement('span');
+                        span.className = 'text-highlight';
+                        span.id = note.highlightId;
+                        span.title = '点击查看笔记';
+                        
+                        try {
+                            range.surroundContents(span);
+                            break;
+                        } catch (e) {
+                            console.warn('无法恢复高亮', e);
+                        }
+                    }
+                }
+            }
+
+            static updateNotesPanel() {
+                const notesList = document.getElementById('notes-list');
+                const fileNotes = currentFile ? 
+                    notes.filter(note => NoteManager.getBookId(note) === currentFile.id) : 
+                    notes;
+
+                if (fileNotes.length === 0) {
+                    notesList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">暂无笔记</p>';
+                    return;
+                }
+
+                let html = '';
+                fileNotes.forEach(note => {
+                    const shortText = note.text ? note.text.substring(0, 100) : '';
+                    
+                    html += '<div class="note-item" data-note-id="' + note.id + '" onclick="NoteManager.scrollToNote(\'' + note.id + '\')">';
+                    html += '<div class="note-time">' + NoteManager.formatTime(note.createdAt) + '</div>';
+                    
+                    if (note.text) {
+                        html += '<div class="note-text">' + shortText + '</div>';
+                    } else {
+                        html += '<div class="note-text" style="color: var(--text-secondary); font-style: italic;">点击编辑笔记...</div>';
+                    }
+                    
+                    html += '</div>';
+                });
+
+                notesList.innerHTML = html;
+            }
+
+            static scrollToNote(noteId) {
+                const noteBox = document.querySelector('[data-note-id="' + noteId + '"]');
+                if (noteBox) {
+                    // 如果笔记是折叠的，先展开
+                    if (noteBox.classList.contains('collapsed')) {
+                        noteBox.classList.remove('collapsed');
+                        const toggleBtn = noteBox.querySelector('.note-toggle-btn');
+                        if (toggleBtn) {
+                            toggleBtn.textContent = '▼';
+                        }
+                        const note = notes.find(n => n.id === noteId);
+                        if (note) {
+                            note.collapsed = false;
+                        }
+                    }
+
+                    noteBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    noteBox.style.transform = 'scale(1.02)';
+                    setTimeout(() => {
+                        noteBox.style.transform = 'scale(1)';
+                    }, 300);
+                }
+            }
+
+            static exportNotes() {
+                const bookId = currentFile ? currentFile.id : null;
+                const fileNotes = currentFile ?
+                    notes.filter(note => NoteManager.getBookId(note) === bookId) :
+                    notes;
+
+                if (fileNotes.length === 0) {
+                    alert('暂无笔记可导出');
+                    return;
+                }
+
+                const data = {
+                    exportVersion: 1,
+                    book: currentFile ? { name: currentFile.name, id: currentFile.id, type: currentFile.type } : null,
+                    exportTime: new Date().toISOString(),
+                    totalNotes: fileNotes.length,
+                    notes: fileNotes
+                };
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : '所有笔记') + '_笔记.json';
+                a.click();
+                URL.revokeObjectURL(url);
+
+                console.log('✅ 笔记已导出');
+            }
+
+            static importNotes() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json,application/json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        try {
+                            const data = JSON.parse(reader.result);
+                            const imported = data.notes || [];
+                            if (!imported.length) {
+                                alert('文件中没有可导入的笔记');
+                                return;
+                            }
+
+                            const targetBookId = data.book ? data.book.id : (currentFile ? currentFile.id : null);
+                            const targetBookName = data.book ? data.book.name : (currentFile ? currentFile.name : '未知书籍');
+
+                            let mergedCount = 0;
+                            let addedCount = 0;
+
+                            imported.forEach((imp) => {
+                                const sel = (imp.selectedText || '').trim();
+                                const existing = notes.find(n =>
+                                    NoteManager.getBookId(n) === targetBookId &&
+                                    (n.selectedText || '').trim() === sel &&
+                                    sel !== ''
+                                );
+
+                                if (existing) {
+                                    const impText = (imp.text || '').trim();
+                                    if (impText) {
+                                        existing.text = (existing.text ? existing.text + '\n' : '') + '【新导入】' + impText;
+                                    }
+                                    existing.imported = true;
+                                    existing.updatedAt = new Date().toISOString();
+                                    mergedCount++;
+                                } else {
+                                    const newNote = {
+                                        id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                                        bookId: targetBookId,
+                                        filePath: targetBookId,
+                                        selectedText: imp.selectedText || '',
+                                        highlightId: imp.highlightId || ('highlight_import_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
+                                        pageNumber: imp.pageNumber || null,
+                                        text: (imp.text || '').trim() ? '【新导入】' + (imp.text || '') : '',
+                                        createdAt: imp.createdAt || new Date().toISOString(),
+                                        updatedAt: new Date().toISOString(),
+                                        collapsed: true,
+                                        confirmed: true,
+                                        imported: true
+                                    };
+                                    notes.push(newNote);
+                                    addedCount++;
+                                }
+                            });
+
+                            NoteManager.saveNotes();
+
+                            if (currentFile && currentFile.id === targetBookId) {
+                                NoteManager.rerenderCurrentBookNotes();
+                            } else {
+                                NoteManager.updateNotesPanel();
+                            }
+
+                            const sameBook = currentFile && currentFile.id === targetBookId;
+                            let msg = '导入完成：合并 ' + mergedCount + ' 条，新增 ' + addedCount + ' 条';
+                            if (!sameBook) {
+                                msg += '\n（当前未打开对应书籍《' + targetBookName + '》，请打开该书籍以查看导入的笔记）';
+                            }
+                            alert(msg);
+                            console.log('✅ 笔记导入完成');
+                        } catch (err) {
+                            console.error('❌ 笔记导入失败:', err);
+                            alert('笔记导入失败，请检查文件格式');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            }
+
+            static rerenderCurrentBookNotes() {
+                // 清除现有高亮与笔记框后重新渲染，避免重复
+                document.querySelectorAll('#content .text-highlight').forEach((h) => {
+                    const parent = h.parentNode;
+                    while (h.firstChild) {
+                        parent.insertBefore(h.firstChild, h);
+                    }
+                    parent.removeChild(h);
+                });
+                document.querySelectorAll('#content .note-box').forEach((b) => b.remove());
+                NoteManager.restore(currentFile.id);
+            }
+        }
+
+        class ThemeManager {
+            static init() {
+                const savedTheme = localStorage.getItem('md_reader_theme');
+                if (savedTheme) {
+                    currentTheme = savedTheme;
+                }
+
+                ThemeManager.applyTheme(currentTheme);
+
+                document.getElementById('toggleTheme').addEventListener('click', () => {
+                    ThemeManager.toggleTheme();
+                });
+
+                console.log('✅ 主题管理器已初始化');
+            }
+
+            static toggleTheme() {
+                currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+                ThemeManager.applyTheme(currentTheme);
+                localStorage.setItem('md_reader_theme', currentTheme);
+            }
+
+            static applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.body.classList.add('theme-dark');
+                } else {
+                    document.body.classList.remove('theme-dark');
+                }
+
+                const btn = document.getElementById('toggleTheme');
+                btn.textContent = theme === 'light' ? '🌙 暗黑模式' : '☀️ 明亮模式';
+            }
+        }
+
+        class TooltipManager {
+            static tip = null;
+            static currentEl = null;
+
+            static init() {
+                TooltipManager.tip = document.getElementById('tooltip');
+                if (!TooltipManager.tip) return;
+
+                document.addEventListener('mouseover', (e) => {
+                    const el = e.target.closest('[data-tooltip]');
+                    if (el && el !== TooltipManager.currentEl) {
+                        TooltipManager.currentEl = el;
+                        TooltipManager.show(el);
+                    }
+                });
+
+                document.addEventListener('mouseout', (e) => {
+                    const el = e.target.closest('[data-tooltip]');
+                    if (!el) return;
+                    const to = e.relatedTarget;
+                    if (!to || !el.contains(to)) {
+                        TooltipManager.hide();
+                        TooltipManager.currentEl = null;
+                    }
+                });
+
+                // 滚动时隐藏，避免提示错位
+                window.addEventListener('scroll', () => TooltipManager.hide(), true);
+            }
+
+            static show(el) {
+                const tip = TooltipManager.tip;
+                tip.textContent = el.getAttribute('data-tooltip') || '';
+                tip.classList.add('show');
+
+                const rect = el.getBoundingClientRect();
+                const tipRect = tip.getBoundingClientRect();
+                let left = rect.left + rect.width / 2 - tipRect.width / 2;
+                let top = rect.top - tipRect.height - 8;
+                if (top < 8) top = rect.bottom + 8;
+                left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+                tip.style.left = left + 'px';
+                tip.style.top = top + 'px';
+            }
+
+            static hide() {
+                if (TooltipManager.tip) {
+                    TooltipManager.tip.classList.remove('show');
+                }
+            }
+        }
+
+        function initNotesPanel() {
+            const toggleBtn = document.getElementById('toggleNotesPanel');
+            const panel = document.getElementById('notes-panel');
+
+            toggleBtn.addEventListener('click', () => {
+                panel.classList.toggle('collapsed');
+                toggleBtn.classList.toggle('active');
+            });
+        }
+
+        function initApp() {
+            NoteManager.init();
+            FileManager.init();
+            ProgressTracker.init();
+            ThemeManager.init();
+            TooltipManager.init();
+            initNotesPanel();
+
+            document.getElementById('exportNotes').addEventListener('click', () => {
+                NoteManager.exportNotes();
+            });
+
+            document.getElementById('importNotes').addEventListener('click', () => {
+                NoteManager.importNotes();
+            });
+
+            setInterval(() => {
+                if (currentFile) {
+                    ProgressTracker.save();
+                }
+            }, 5000);
+
+            console.log('📖 纸质书阅读器已启动');
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
+    </script>
+</body>
+</html>
